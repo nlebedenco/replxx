@@ -48,9 +48,15 @@ public:
 	}
 
 	void assign( std::string const& str_ ) {
-		realloc( str_.length() );
+		realloc( static_cast<int>( str_.length() ) );
 		strncpy( _data.get(), str_.c_str(), str_.length() );
-		_len = str_.length();
+		_len = static_cast<int>( str_.length() );
+	}
+
+	void assign( Utf8String const& other_ ) {
+		realloc( other_._len );
+		strncpy( _data.get(), other_._data.get(), other_._len );
+		_len = other_._len;
 	}
 
 	char const* get() const {
@@ -59,6 +65,10 @@ public:
 
 	int size( void ) const {
 		return ( _len );
+	}
+
+	bool operator != ( Utf8String const& other_ ) {
+		return ( ( other_._len != _len ) || ( memcmp( other_._data.get(), _data.get(), _len ) != 0 ) );
 	}
 
 private:

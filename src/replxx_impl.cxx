@@ -172,6 +172,10 @@ Replxx::ReplxxImpl::ReplxxImpl( FILE*, FILE*, FILE* )
 	, _errorMessage()
 	, _previousSearchText()
 	, _modifiedState( false )
+	, _hintColor( Replxx::Color::GRAY )
+	, _hintsCache()
+	, _hintContextLenght( -1 )
+	, _hintSeed()
 	, _mutex() {
 	using namespace std::placeholders;
 	_namedActions[action_names::INSERT_CHARACTER]                = std::bind( &ReplxxImpl::invoke, this, Replxx::ACTION::INSERT_CHARACTER,                _1 );
@@ -394,7 +398,7 @@ char32_t Replxx::ReplxxImpl::read_char( HINT_ACTION hintAction_ ) {
 		clear_self_to_end_of_screen();
 		while ( ! _messages.empty() ) {
 			string const& message( _messages.front() );
-			_terminal.write8( message.data(), message.length() );
+			_terminal.write8( message.data(), static_cast<int>( message.length() ) );
 			_messages.pop_front();
 		}
 		repaint();
@@ -665,7 +669,7 @@ void Replxx::ReplxxImpl::render( HINT_ACTION hintAction_ ) {
 		for ( char32_t ch : _data ) {
 			render( ch );
 		}
-		_displayInputLength = _display.size();
+		_displayInputLength = static_cast<int>( _display.size() );
 		_modifiedState = false;
 		return;
 	}
@@ -687,7 +691,7 @@ void Replxx::ReplxxImpl::render( HINT_ACTION hintAction_ ) {
 		render( _data[i] );
 	}
 	set_color( Replxx::Color::DEFAULT );
-	_displayInputLength = _display.size();
+	_displayInputLength = static_cast<int>( _display.size() );
 	_modifiedState = false;
 	return;
 }
@@ -714,18 +718,21 @@ int Replxx::ReplxxImpl::handle_hints( HINT_ACTION hintAction_ ) {
 	if ( hintAction_ == HINT_ACTION::REGENERATE ) {
 		_hintSelection = -1;
 	}
-	Replxx::Color c( Replxx::Color::GRAY );
 	_utf8Buffer.assign( _data, _pos );
-	int contextLen( context_length() );
-	Replxx::ReplxxImpl::hints_t hints( call_hinter( _utf8Buffer.get(), contextLen, c ) );
-	int hintCount( hints.size() );
+	if ( ( _utf8Buffer != _hintSeed ) || ( _hintContextLenght < 0 ) ) {
+		_hintSeed.assign( _utf8Buffer );
+		_hintContextLenght = context_length();
+		_hintColor = Replxx::Color::GRAY;
+		_hintsCache = call_hinter( _utf8Buffer.get(), _hintContextLenght, _hintColor );
+	}
+	int hintCount( static_cast<int>( _hintsCache.size() ) );
 	if ( hintCount == 1 ) {
-		_hint = hints.front();
-		len = _hint.length() - contextLen;
+		_hint = _hintsCache.front();
+		len = _hint.length() - _hintContextLenght;
 		if ( len > 0 ) {
-			set_color( c );
+			set_color( _hintColor );
 			for ( int i( 0 ); i < len; ++ i ) {
-				_display.push_back( _hint[i + contextLen] );
+				_display.push_back( _hint[i + _hintContextLenght] );
 			}
 			set_color( Replxx::Color::DEFAULT );
 		}
@@ -741,17 +748,17 @@ int Replxx::ReplxxImpl::handle_hints( HINT_ACTION hintAction_ ) {
 			_hintSelection = -1;
 		}
 		if ( _hintSelection != -1 ) {
-			_hint = hints[_hintSelection];
+			_hint = _hintsCache[_hintSelection];
 			len = min<int>( _hint.length(), maxCol - startCol );
-			if ( contextLen < len ) {
-				set_color( c );
-				for ( int i( contextLen ); i < len; ++ i ) {
+			if ( _hintContextLenght < len ) {
+				set_color( _hintColor );
+				for ( int i( _hintContextLenght ); i < len; ++ i ) {
 					_display.push_back( _hint[i] );
 				}
 				set_color( Replxx::Color::DEFAULT );
 			}
 		}
-		startCol -= contextLen;
+		startCol -= _hintContextLenght;
 		for ( int hintRow( 0 ); hintRow < min( hintCount, _maxHintRows ); ++ hintRow ) {
 #ifdef _WIN32
 			_display.push_back( '\r' );
@@ -761,8 +768,8 @@ int Replxx::ReplxxImpl::handle_hints( HINT_ACTION hintAction_ ) {
 			for ( int i( 0 ); ( i < startCol ) && ( col < maxCol ); ++ i, ++ col ) {
 				_display.push_back( ' ' );
 			}
-			set_color( c );
-			for ( int i( _pos - contextLen ); ( i < _pos ) && ( col < maxCol ); ++ i, ++ col ) {
+			set_color( _hintColor );
+			for ( int i( _pos - _hintContextLenght ); ( i < _pos ) && ( col < maxCol ); ++ i, ++ col ) {
 				_display.push_back( _data[i] );
 			}
 			int hintNo( hintRow + _hintSelection + 1 );
@@ -771,8 +778,8 @@ int Replxx::ReplxxImpl::handle_hints( HINT_ACTION hintAction_ ) {
 			} else if ( hintNo > hintCount ) {
 				-- hintNo;
 			}
-			UnicodeString const& h( hints[hintNo % hintCount] );
-			for ( int i( contextLen ); ( i < h.length() ) && ( col < maxCol ); ++ i, ++ col ) {
+			UnicodeString const& h( _hintsCache[hintNo % hintCount] );
+			for ( int i( _hintContextLenght ); ( i < h.length() ) && ( col < maxCol ); ++ i, ++ col ) {
 				_display.push_back( h[i] );
 			}
 			set_color( Replxx::Color::DEFAULT );
@@ -864,7 +871,7 @@ void Replxx::ReplxxImpl::refresh_line( HINT_ACTION hintAction_ ) {
 		calculate_displayed_length( _data.get(), _data.length() ) + hintLen,
 		xEndOfInput, yEndOfInput
 	);
-	yEndOfInput += count( _display.begin(), _display.end(), '\n' );
+	yEndOfInput += static_cast<int>( count( _display.begin(), _display.end(), '\n' ) );
 
 	// calculate the desired position of the cursor
 	int xCursorPos( 0 ), yCursorPos( 0 );
@@ -884,7 +891,7 @@ void Replxx::ReplxxImpl::refresh_line( HINT_ACTION hintAction_ ) {
 	// display the input line
 	_terminal.write32( _display.data(), _displayInputLength );
 	_terminal.clear_screen( Terminal::CLEAR_SCREEN::TO_END );
-	_terminal.write32( _display.data() + _displayInputLength, _display.size() - _displayInputLength );
+	_terminal.write32( _display.data() + _displayInputLength, static_cast<int>( _display.size() ) - _displayInputLength );
 #ifndef _WIN32
 	// we have to generate our own newline on line wrap
 	if ( ( xEndOfInput == 0 ) && ( yEndOfInput > 0 ) ) {
@@ -926,7 +933,7 @@ void Replxx::ReplxxImpl::clear_self_to_end_of_screen( Prompt const* prompt_ ) {
 
 namespace {
 int longest_common_prefix( Replxx::ReplxxImpl::completions_t const& completions ) {
-	int completionsCount( completions.size() );
+	int completionsCount( static_cast<int>( completions.size() ) );
 	if ( completionsCount < 1 ) {
 		return ( 0 );
 	}
@@ -983,7 +990,7 @@ char32_t Replxx::ReplxxImpl::do_complete_line( bool showCompletions_ ) {
 
 	// at least one completion
 	int longestCommonPrefix = 0;
-	int completionsCount( _completions.size() );
+	int completionsCount( static_cast<int>( _completions.size() ) );
 	int selectedCompletion( 0 );
 	if ( _hintSelection != -1 ) {
 		selectedCompletion = _hintSelection;
@@ -1308,8 +1315,8 @@ Replxx::ACTION_RESULT Replxx::ReplxxImpl::insert_character( char32_t c ) {
 			_prompt._previousInputLen = inputLen;
 		}
 		render( c );
-		_displayInputLength = _display.size();
-		_terminal.write32(reinterpret_cast<char32_t*>(&c), 1);
+		_displayInputLength = static_cast<int>( _display.size() );
+		_terminal.write32( reinterpret_cast<char32_t*>( &c ), 1 );
 	} else {
 		refresh_line();
 	}

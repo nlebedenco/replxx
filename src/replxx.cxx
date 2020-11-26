@@ -360,8 +360,8 @@ void replxx_set_preload_buffer(::Replxx* replxx_, const char* preloadText) {
  * user
  *
  * @param prompt text of prompt to display to the user
- * @return the returned string belongs to the caller on return and must be
- * freed to prevent memory leaks
+ * @return the returned string is managed by replxx library
+ * and it must NOT be freed in the client.
  */
 char const* replxx_input( ::Replxx* replxx_, const char* prompt ) {
 	replxx::Replxx::ReplxxImpl* replxx( reinterpret_cast<replxx::Replxx::ReplxxImpl*>( replxx_ ) );
@@ -443,7 +443,7 @@ void highlighter_fwd( replxx_highlighter_callback_t fn, std::string const& input
 			return ( static_cast<ReplxxColor>( c ) );
 		}
 	);
-	fn( input.c_str(), colorsTmp.data(), colors.size(), userData );
+	fn( input.c_str(), colorsTmp.data(), static_cast<int>( colors.size() ), userData );
 	std::transform(
 		colorsTmp.begin(),
 		colorsTmp.end(),

@@ -347,31 +347,23 @@ char32_t Terminal::read_char( void ) {
 			}
 		}
 #endif
-		if (rec.EventType != KEY_EVENT) {
+		if ( rec.EventType != KEY_EVENT ) {
 			continue;
 		}
-		// Windows provides for entry of characters that are not on your keyboard by
-		// sending the
-		// Unicode characters as a "key up" with virtual keycode 0x12 (VK_MENU ==
-		// Alt key) ...
+		// Windows provides for entry of characters that are not on your keyboard by sending the
+		// Unicode characters as a "key up" with virtual keycode 0x12 (VK_MENU == Alt key) ...
 		// accept these characters, otherwise only process characters on "key down"
-		if (!rec.Event.KeyEvent.bKeyDown &&
-				rec.Event.KeyEvent.wVirtualKeyCode != VK_MENU) {
+		if ( !rec.Event.KeyEvent.bKeyDown && ( rec.Event.KeyEvent.wVirtualKeyCode != VK_MENU ) ) {
 			continue;
 		}
 		modifierKeys = 0;
-		// AltGr is encoded as ( LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED ), so don't
-		// treat this
-		// combination as either CTRL or META we just turn off those two bits, so it
-		// is still
-		// possible to combine CTRL and/or META with an AltGr key by using
-		// right-Ctrl and/or
+		// AltGr is encoded as ( LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED ), so don't treat this
+		// combination as either CTRL or META we just turn off those two bits, so it is still
+		// possible to combine CTRL and/or META with an AltGr key by using right-Ctrl and/or
 		// left-Alt
-		if ((rec.Event.KeyEvent.dwControlKeyState &
-				 (LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED)) ==
-				(LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED)) {
-			rec.Event.KeyEvent.dwControlKeyState &=
-					~(LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED);
+		DWORD const AltGr( LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED );
+		if ( ( rec.Event.KeyEvent.dwControlKeyState & AltGr ) == AltGr ) {
+			rec.Event.KeyEvent.dwControlKeyState &= ~( LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED );
 		}
 		if ( rec.Event.KeyEvent.dwControlKeyState & ( RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED ) ) {
 			modifierKeys |= Replxx::KEY::BASE_CONTROL;
@@ -379,7 +371,7 @@ char32_t Terminal::read_char( void ) {
 		if ( rec.Event.KeyEvent.dwControlKeyState & ( RIGHT_ALT_PRESSED | LEFT_ALT_PRESSED ) ) {
 			modifierKeys |= Replxx::KEY::BASE_META;
 		}
-		if (escSeen) {
+		if ( escSeen ) {
 			modifierKeys |= Replxx::KEY::BASE_META;
 		}
 		int key( rec.Event.KeyEvent.uChar.UnicodeChar );
@@ -531,7 +523,7 @@ Terminal::EVENT_TYPE Terminal::wait_for_input( int long timeout_ ) {
 #ifdef _WIN32
 	std::array<HANDLE,2> handles = { _consoleIn, _interrupt };
 	while ( true ) {
-		DWORD event( WaitForMultipleObjects( handles.size (), handles.data(), false, timeout_ > 0 ? timeout_ : INFINITE ) );
+		DWORD event( WaitForMultipleObjects( static_cast<DWORD>( handles.size() ), handles.data(), false, timeout_ > 0 ? timeout_ : INFINITE ) );
 		switch ( event ) {
 			case ( WAIT_OBJECT_0 + 0 ): {
 				// peek events that will be skipped
@@ -663,9 +655,7 @@ void Terminal::clear_screen( CLEAR_SCREEN clearScreen_ ) {
 //	FillConsoleOutputCharacterA( consoleOut, ' ', toWrite, coord, &nWritten );
 	_empty.resize( toWrite - 1, ' ' );
 	WriteConsoleA( consoleOut, _empty.data(), toWrite - 1, &nWritten, nullptr );
-	if ( toEnd ) {
-		SetConsoleCursorPosition( consoleOut, coord );
-	}
+	SetConsoleCursorPosition( consoleOut, coord );
 #endif
 }
 
