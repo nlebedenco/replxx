@@ -19,6 +19,12 @@ while [ ${#} -gt 0 ] ; do
 		continue
 	fi
 
+	if [ \( ${#} -gt 0 \) -a \( "x${1}" = "xx86" \) ] ; then
+		arch="-A Win32"
+		shift
+		continue
+	fi
+
 	if [ \( ${#} -gt 0 \) -a \( "x${1}" = "xstatic-only" \) ] ; then
 		skip="shared"
 		shift
@@ -54,10 +60,15 @@ build_target() {
 	cd "build/${target}"
 	if [ "x${msvcxx}" = "x1" ] ; then
 		vswhere="/cygdrive/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
-		name="$("${vswhere}" -latest -property catalog_productName | tr -d '\r')"
-		ver=$("${vswhere}" -latest -property installationVersion | awk -F '.' '{print $1}')
+		if [ -f "${vswhere}" ] ; then
+			name="$("${vswhere}" -latest -property catalog_productName | tr -d '\r')"
+			ver=$("${vswhere}" -latest -property installationVersion | awk -F '.' '{print $1}')
+		else
+			name="Visual Studio"
+			ver="14"
+		fi
 		cmake="/cygdrive/c/Program Files/CMake/bin/cmake.exe"
-		"${cmake}" ${STATIC} ${shared} ${examples} -G "${name} ${ver}" ${installPrefix} ../../
+		"${cmake}" ${STATIC} ${shared} ${examples} -G "${name} ${ver}" ${arch} ${installPrefix} ../../
 		"${cmake}" --build . --config Debug
 		"${cmake}" --build . --config Release
 		"${cmake}" --build . --config Debug --target Install
